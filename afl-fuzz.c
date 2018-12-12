@@ -129,11 +129,16 @@ static s32 out_fd,                    /* Persistent fd for out_file       */
            dev_null_fd = -1,          /* Persistent fd for /dev/null      */
            fsrv_ctl_fd,               /* Fork server control pipe (write) */
            fsrv_st_fd;                /* Fork server status pipe (read)   */
-//yuroc: add extension offset info file descriptor
 #ifdef FUZZ_EXTENSION
-//const char _EXT_FN[100] = "/home/yuroc/workspace/protocol/tools/afl/testcases/mine/extension/extension_info"
-//static s32 extension_fd;
-// maybe mem buffer for content in file, but this should change for each entry in the queue
+
+u8  *buf_before_target,
+    *buf_target,
+    *buf_after_target;
+s32 len_before_target,
+    len_target,
+    len_after_target;
+s8  packet_type= -1;
+u8 target_profiled=0;
 
 #endif
 
@@ -330,20 +335,85 @@ enum {
 };
 
 
-//yuroc: get extension info from file
-void get_extension_info(u8 flag, s32 fd)
+
+#ifdef FUZZ_EXTENSION
+
+void get_target_info(u8* buf, s32 len)
 {
-if(!fd) PFATAL("open extension info file failed\n");
-// read file to buffer
 
-switch(flag){
-case 1:
-case 2:
-case 3:
-case 4:
+if(!buf) PFATAL("read packet format failed\n");
+
+if(packet_type!=1 && packet_type!=2 && packet_type!=3 && packet_type!=4 && packet_type!=-1) PFATAL("packet_type is %d, but currently we only suport packet type 1-4!\n",packet_type);
+
+if(target_profiled == 1){
+    // already profiled, which means that len before and after target should not be changed
+    len_target = len-len_before_target-len_after_target;
+    buf_target = buf+len_before_target;
+    buf_before_target = buf+len_before_target;
+    buf_after_target = buf+len_before_target+len_target;
 }
+else{
+target_profiled = 1;
+switch(packet_type){
+    case 1: 
+        // client hello
+        {
+        u16 total_len = (*(buf+3))*16+*(buf+4)+5; // +1 because selftls add '\n' at the end
+        u8 sessionID_len = *(buf+5+38);
+        u8 cipher_len1 = *(buf+5+38+sessionID_len+1);
+        u8 cipher_len2 = *(buf+5+38+sessionID_len+2);
+        u16 cipher_len = cipher_len1*16+cipher_len2;
+        u8 compression = *(buf+5+38+1+sessionID_len+2+cipher_len+1);
+        u8 ext_len1 = *(buf+5+38+1+sessionID_len+2+cipher_len+2);
+        u8 ext_len2 = *(buf+5+38+1+sessionID_len+2+cipher_len+3);
+        u16 ext_len = 16*ext_len1 + ext_len2;
+        //len_before_target = 5+38+1+sessionID_len+2+cipher_len+2+2;
+        //len_target = ext_len;
+        len_before_target = 5+38+1+sessionID_len+2+cipher_len+2;
+        len_target = ext_len+2; // I decided to fuzz the length of extension fields as well
+        len_after_target = total_len-len_before_target-len_target; 
+        //PNFATAL("\ntotal len is %d\n len_before is %d,len_target is %d, len_after is %d\n", total_len, len_before_target,len_target,len_after_target); // just for debug
+
+        if(len_after_target<0){
+        /*
+            for(int i=0;i<10;i++){
+                PNFATAL("%d th value of input buf is %x\n",i,*(buf+i));
+            }
+        */
+            PFATAL("total len is %d, total len from reading packet is %d, len_after_target is negative, something is wrong, len_before is %d,len_target is %d, len_after is %d, ext_len1 is %d, ext_len2 is%d, sessionID_Len is %d, cipher1 is %d, cipher2 is %d, cipher_Len is %d,compression method is %d\n",len, total_len, len_before_target,len_target,len_after_target,ext_len1,ext_len2,sessionID_len,cipher_len1,cipher_len2,cipher_len,compression);
+
+        }
+        
+        buf_before_target = buf;
+        buf_target = buf+len_before_target;
+        buf_after_target = buf_target+len_target;
+
+        //len_after_target = 1; // current is 1, line end '\n'
+        break;
+        }
+    case 2: 
+        // server hello, server certificate, server hello done
+        break;
+    case 3: 
+        // client stuff
+        break;
+    case 4: 
+        // server stuff
+        break;
+    default:
+        buf_before_target = NULL;
+        buf_target = buf;
+        buf_after_target = NULL;
+        len_before_target = 0;
+        len_target = len;
+        len_after_target = 0;
+
+        
+}
+}   
 }
 
+#endif
 
 
 /* Get unix time in milliseconds */
@@ -4608,8 +4678,30 @@ abort_trimming:
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
 
+
+// yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
+#ifdef FUZZ_EXTENSION
+//yuroc modify: out_buf is now the target area
+if(packet_type!=-1){
+  len_target = len;
+  buf_target = out_buf;
+  /*
+  if(len_target!=len){ // target length can mismatch, due to the deletion mutation in havoc stage
+      len_target = len;
+      //PFATAL("target length mismatch, something is wrong, len_target is %d and len is %d\n",len_target, len);
+  }
+  */
+  u8* tmp_buf=ck_alloc_nozero(len_target+len_before_target+len_after_target);
+  memcpy(tmp_buf,buf_before_target,len_before_target);
+  memcpy(tmp_buf+len_before_target,out_buf,len);
+  memcpy(tmp_buf+len_before_target+len,buf_after_target,len_after_target);
+  out_buf = tmp_buf; // change out_buf to the whole file
+  len = len_target+len_before_target+len_after_target;
+}
+#endif
+// end
   u8 fault;
 
   if (post_handler) {
@@ -4619,14 +4711,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   }
 
-  /*********** yuroc modify to enable partial fuzzing*******************/
-  // write_to_testcase(out_buf, len); original function to write testcase to file
-
-  // _EXT_CLN_START is the start position of extensions in client message,
-  // _EXT_CLN_LEN is the length of extension fields in client message
-  // they are bot of type u32
-  //write_with_gap(out_buf,len,_EXT_CLN_START, _EXT_CLN_LEN); 
-  write_with_gap(out_buf,len,0,0); 
+  write_to_testcase(out_buf,len); 
 
   fault = run_target(argv, exec_tmout);
 
@@ -4653,7 +4738,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   }
 
   /* This handles FAULT_ERROR for us: */
-
+  //yuroc
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
@@ -4970,7 +5055,7 @@ static u8 could_be_interest(u32 old_val, u32 new_val, u8 blen, u8 check_le) {
 
 static u8 fuzz_one(char** argv) {
 
-  s32 len, fd, temp_len, i, j;
+  s32 len, fd, temp_len, i, j; // TODO, len should be the target len or total len?
   u8  *in_buf, *out_buf, *orig_in, *ex_tmp, *eff_map = 0;
   u64 havoc_queued,  orig_hit_cnt, new_hit_cnt;
   u32 splice_cycle = 0, perf_score = 100, orig_perf, prev_cksum, eff_cnt = 1;
@@ -5042,7 +5127,13 @@ static u8 fuzz_one(char** argv) {
      single byte anyway, so it wouldn't give us any performance or memory usage
      benefits. */
 
-  out_buf = ck_alloc_nozero(len); // yuroc: change len to the length of free fields
+  //out_buf = ck_alloc_nozero(len); // yuroc: change len to the length of free fields
+#ifdef FUZZ_EXTENSION
+  get_target_info(in_buf,len);
+  out_buf = ck_alloc_nozero(len_target);
+#else
+  out_buf = ck_alloc_nozero(len);
+#endif
 
   subseq_tmouts = 0;
 
@@ -5076,6 +5167,7 @@ static u8 fuzz_one(char** argv) {
    * TRIMMING *
    ************/
 
+#ifndef FUZZ_EXTENSION
   if (!dumb_mode && !queue_cur->trim_done) {
 
     u8 res = trim_case(argv, queue_cur, in_buf);
@@ -5095,8 +5187,15 @@ static u8 fuzz_one(char** argv) {
     if (len != queue_cur->len) len = queue_cur->len;
 
   }
+#endif
 
-  memcpy(out_buf, in_buf, len); // yuroc, modify this memcpy to copy only free fields
+#ifdef FUZZ_EXTENSION
+  len = len_target;
+  memcpy(out_buf, buf_target, len); // yuroc, out_buf is now only target area
+  
+#else
+  memcpy(out_buf,in_buf,len);
+#endif
 
   /*********************
    * PERFORMANCE SCORE *
@@ -5147,7 +5246,7 @@ static u8 fuzz_one(char** argv) {
 
     FLIP_BIT(out_buf, stage_cur);
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry; //yuroc: TODO, out_buf is now only target area, but len is not.
 
     FLIP_BIT(out_buf, stage_cur);
 
@@ -7754,28 +7853,10 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Q")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCQB:S:M:x:E:")) > 0)
 
     switch (opt) {
-
-      /********************yuroc: add fuzzing extension fields, set up some variable*******/
-      // specify which message it is, try the first four packets.
-      // read fields range from file, currently the file only contains the starting position to skip and the length to skip, ie: (0 LEN_OF_NON_EXTENSION)
-      /*
-      #ifdef FUZZ_EXTENSION
-      
-      case 'E': 
-        extension_fd = open(_EXT_FN, 0_RDONLY,0400);
-        // parse the input according to the type of packets
-        switch(optarg){
-
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        }
-      #endif
-      */
+            
       case 'i': /* input dir */
 
         if (in_dir) FATAL("Multiple -i options not supported");
@@ -7939,6 +8020,15 @@ int main(int argc, char** argv) {
         if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
 
         break;
+
+      #ifdef FUZZ_EXTENSION
+      case 'E': 
+        // parse the input according to the type of packets
+        packet_type = *optarg-'0';
+        break;
+        
+      #endif
+
 
       default:
 
