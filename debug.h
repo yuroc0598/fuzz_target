@@ -228,9 +228,9 @@
 
 #define PNFATAL(x...) do { \
     fflush(stdout); \
-    SAYF(bSTOP RESET_G1 CURSOR_SHOW cRST cLRD "\n[-] DEBUG INFO  : " \
+    SAYF(bSTOP RESET_G1 CURSOR_SHOW cRST cLRD "\n[-]  DEBUG INFO : " \
          cBRI x); \
-    SAYF(cLRD "\n   location : " cRST "%s(), %s:%u\n", \
+    SAYF(cLRD "\n location : " cRST "%s(), %s:%u\n", \
          __FUNCTION__, __FILE__, __LINE__); \
   } while (0)
 

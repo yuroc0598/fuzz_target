@@ -351,6 +351,7 @@ if(target_profiled == 1){
     buf_target = buf+len_before_target;
     buf_before_target = buf+len_before_target;
     buf_after_target = buf+len_before_target+len_target;
+    //yurocTODO: set packet len according to target len
 }
 else{
 target_profiled = 1;
@@ -358,42 +359,57 @@ switch(packet_type){
     case 1: 
         // client hello
         {
-        u16 total_len = (*(buf+3))*16+*(buf+4)+5; // +1 because selftls add '\n' at the end
+        u16 total_len = (*(buf+3))*16+*(buf+4)+5;  
         u8 sessionID_len = *(buf+5+38);
         u8 cipher_len1 = *(buf+5+38+sessionID_len+1);
         u8 cipher_len2 = *(buf+5+38+sessionID_len+2);
         u16 cipher_len = cipher_len1*16+cipher_len2;
-        u8 compression = *(buf+5+38+1+sessionID_len+2+cipher_len+1);
+        //u8 compression = *(buf+5+38+1+sessionID_len+2+cipher_len+1);
         u8 ext_len1 = *(buf+5+38+1+sessionID_len+2+cipher_len+2);
         u8 ext_len2 = *(buf+5+38+1+sessionID_len+2+cipher_len+3);
         u16 ext_len = 16*ext_len1 + ext_len2;
         //len_before_target = 5+38+1+sessionID_len+2+cipher_len+2+2;
         //len_target = ext_len;
-        len_before_target = 5+38+1+sessionID_len+2+cipher_len+2;
+        len_before_target = 5+38+1+sessionID_len+2+cipher_len+2;// compression len now  is 1
         len_target = ext_len+2; // I decided to fuzz the length of extension fields as well
         len_after_target = total_len-len_before_target-len_target; 
-        //PNFATAL("\ntotal len is %d\n len_before is %d,len_target is %d, len_after is %d\n", total_len, len_before_target,len_target,len_after_target); // just for debug
-
-        if(len_after_target<0){
-        /*
-            for(int i=0;i<10;i++){
-                PNFATAL("%d th value of input buf is %x\n",i,*(buf+i));
-            }
-        */
-            PFATAL("total len is %d, total len from reading packet is %d, len_after_target is negative, something is wrong, len_before is %d,len_target is %d, len_after is %d, ext_len1 is %d, ext_len2 is%d, sessionID_Len is %d, cipher1 is %d, cipher2 is %d, cipher_Len is %d,compression method is %d\n",len, total_len, len_before_target,len_target,len_after_target,ext_len1,ext_len2,sessionID_len,cipher_len1,cipher_len2,cipher_len,compression);
-
-        }
-        
         buf_before_target = buf;
         buf_target = buf+len_before_target;
         buf_after_target = buf_target+len_target;
+        //yurocTODO: set packet len according to target len
 
-        //len_after_target = 1; // current is 1, line end '\n'
         break;
         }
     case 2: 
-        // server hello, server certificate, server hello done
+        /* the major difference for the second packet is that actaully it contains three packets:
+           server hello, server certificate, server hello done
+           and in the latest version of ssl, they are server hello, change cipher spec, then
+           encrypted data;
+           extension fields only exist in server hello, so the buf_after_target and len_after_target
+           need to be set carefully
+        */
+        {
+        u16 total_len1 = (*(buf+3))*16+*(buf+4)+5;//total_len1 is the len of server hello
+        u16 total_len2 = *(buf+total_len1+3)*16+*(buf+total_len1+4)+5;// total_len2 is the len of certificate
+        u16 total_len3 = 9;//total_len3 is the len of server hello done
+        u16 total_len = total_len1 + total_len2 + total_len3;
+        u8 sessionID_len = *(buf+5+38);
+        // server only has 2 bytes for cipher id
+        u8 ext_len1 = *(buf+5+38+1+sessionID_len+3);
+        u8 ext_len2 = *(buf+5+38+1+sessionID_len+4);
+        u16 ext_len = 16*ext_len1 + ext_len2;
+        //len_before_target = 5+38+1+sessionID_len+2+cipher_len+2+2;
+        //len_target = ext_len;
+        len_before_target = 5+38+1+sessionID_len+3;
+        len_target = ext_len+2; // I decided to fuzz the length of extension fields as well
+        len_after_target = total_len-len_before_target-len_target; 
+        buf_before_target = buf;
+        buf_target = buf+len_before_target;
+        buf_after_target = buf_target+len_target;
+        //yurocTODO: set packet len according to target len
+
         break;
+        }
     case 3: 
         // client stuff
         break;
@@ -407,10 +423,14 @@ switch(packet_type){
         len_before_target = 0;
         len_target = len;
         len_after_target = 0;
-
         
 }
-}   
+}
+if(len_after_target<0 || len_target<0 || len_before_target<0){
+    //PFATAL("total len is %d, total len from reading packet is %d, len_after_target is negative, something is wrong, len_before is %d,len_target is %d, len_after is %d, ext_len1 is %d, ext_len2 is%d, sessionID_Len is %d, cipher1 is %d, cipher2 is %d, cipher_Len is %d,compression method is %d\n",len, total_len, len_before_target,len_target,len_after_target,ext_len1,ext_len2,sessionID_len,cipher_len1,cipher_len2,cipher_len,compression);
+    PFATAL("len before or after or of target is negative!\n");
+
+}
 }
 
 #endif
@@ -5055,7 +5075,7 @@ static u8 could_be_interest(u32 old_val, u32 new_val, u8 blen, u8 check_le) {
 
 static u8 fuzz_one(char** argv) {
 
-  s32 len, fd, temp_len, i, j; // TODO, len should be the target len or total len?
+  s32 len, fd, temp_len, i, j; 
   u8  *in_buf, *out_buf, *orig_in, *ex_tmp, *eff_map = 0;
   u64 havoc_queued,  orig_hit_cnt, new_hit_cnt;
   u32 splice_cycle = 0, perf_score = 100, orig_perf, prev_cksum, eff_cnt = 1;
@@ -5246,7 +5266,7 @@ static u8 fuzz_one(char** argv) {
 
     FLIP_BIT(out_buf, stage_cur);
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry; //yuroc: TODO, out_buf is now only target area, but len is not.
+    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry; 
 
     FLIP_BIT(out_buf, stage_cur);
 
