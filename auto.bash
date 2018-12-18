@@ -20,7 +20,7 @@ echo "------Number_of_Threads: int from 1 to N, don't be greedy and leave some c
 
 if [ $# -ne 2 ] || [ $1 -lt 1 ] || [ $1 -gt 4 ] || [ $2 -lt 1 ]
 then
-echo "invalid arguments, check usage"
+echo "invalid arguments, check usage below:"
 usage
 exit -1
 fi
