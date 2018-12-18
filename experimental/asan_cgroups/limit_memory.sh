@@ -31,7 +31,7 @@ echo "cgroup tool for afl-fuzz by <samir.hakim@nyu.edu> and <dwheeler@ida.org>"
 echo
 
 unset NEW_USER
-MEM_LIMIT="50"
+MEM_LIMIT="500"
 
 while getopts "+u:m:" opt; do
 
