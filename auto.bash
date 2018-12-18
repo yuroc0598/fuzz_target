@@ -9,11 +9,11 @@ PACKET=$1
 
 function usage
 {
-printf "Usage of this testing script:\n"
-printf "---sudo ./auto.bash PACKET_SEQ_Number Number_of_Threads\n"
-printf "---currently only support:\n"
-printf "------PACKET_SEQ_Number: int from 1 to 2\n"
-printf "------Number_of_Threads: int from 1 to N\n, don't be greedy and leave some cores for others\n"
+echo "Usage of this testing script:"
+echo "---sudo ./auto.bash PACKET_SEQ_Number Number_of_Threads"
+echo "---currently only support:"
+echo "------PACKET_SEQ_Number: int from 1 to 2"
+echo "------Number_of_Threads: int from 1 to N, don't be greedy and leave some cores for others"
 }
 
 # check arg format
