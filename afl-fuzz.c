@@ -4697,7 +4697,17 @@ abort_trimming:
 /* Write a modified test case, run program, process results. Handle
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
+//yuroc def the function for bit reversion, convert big endian to little endian
+u32 bswap32(u32 num)
+{
 
+u32 swapped =  ((num>>24)&0xff) | // move byte 3 to byte 0
+                    ((num<<8)&0xff0000) | // move byte 1 to byte 2
+                    ((num>>8)&0xff00) | // move byte 2 to byte 1
+                    ((num<<24)&0xff000000); // byte 0 to byte 3
+return swapped;
+
+}
 
 // yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
@@ -4713,12 +4723,18 @@ if(packet_type!=-1){
       //PFATAL("target length mismatch, something is wrong, len_target is %d and len is %d\n",len_target, len);
   }
   */
+  // yuroc: modify thebuf_before_target, change whole packet len,both in record layer and handshake layer
   u8* tmp_buf=ck_alloc_nozero(len_target+len_before_target+len_after_target);
   memcpy(tmp_buf,buf_before_target,len_before_target);
   memcpy(tmp_buf+len_before_target,out_buf,len);
   memcpy(tmp_buf+len_before_target+len,buf_after_target,len_after_target);
   out_buf = tmp_buf; // change out_buf to the whole file
   len = len_target+len_before_target+len_after_target;
+  // note that in u32, lower sig comes first, eg, 1d2, d2 is the first byte
+  u32 len_total_conv = bswap32(len-5);//at most two bytes
+  u32 len_handshake_conv = bswap32(len-9);//at most three bytes
+  memcpy(out_buf+3,&len_total_conv,2);
+  memcpy(out_buf+6,&len_handshake_conv,3);
 }
 #endif
 // end

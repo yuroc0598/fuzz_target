@@ -36,11 +36,22 @@ rm -rf $path/*
 fi
 }
 
+
+function checkExist
+{
+path=$1
+if [ !d $path ]
+then
+mkdir -p $path
+fi
+}
+
 for (( i=0;i<$NTHREAD;i++ ))
 do
 in_dir=p"$PACKET"
 out_dir=out_target_p"$PACKET"
-isEmpty $out_dir
+checkExist "$PROG_PATH/$out_dir"
+isEmpty "$PROG_PATH/$out_dir"
 sub_out_dir=fuzzer"$i"
 if [ $i -eq 0 ]
 then
