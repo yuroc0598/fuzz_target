@@ -406,7 +406,7 @@ switch(packet_type){
         buf_before_target = buf;
         buf_target = buf+len_before_target;
         buf_after_target = buf_target+len_target;
-        //yurocTODO: set packet len according to target len
+        //yurocTODO: set packet len according to target len: already implemented in common_fuzz_stuff
 
         break;
         }
@@ -428,7 +428,7 @@ switch(packet_type){
 }
 if(len_after_target<0 || len_target<0 || len_before_target<0){
     //PFATAL("total len is %d, total len from reading packet is %d, len_after_target is negative, something is wrong, len_before is %d,len_target is %d, len_after is %d, ext_len1 is %d, ext_len2 is%d, sessionID_Len is %d, cipher1 is %d, cipher2 is %d, cipher_Len is %d,compression method is %d\n",len, total_len, len_before_target,len_target,len_after_target,ext_len1,ext_len2,sessionID_len,cipher_len1,cipher_len2,cipher_len,compression);
-    PFATAL("len before or after or of target is negative!\n");
+    PFATAL("some len is negative!before: %d,target:%d,after:%d\n",len_before_target,len_target,len_after_target);
 
 }
 }
@@ -4698,6 +4698,7 @@ abort_trimming:
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
 //yuroc def the function for bit reversion, convert big endian to little endian
+/*
 u32 bswap32(u32 num)
 {
 
@@ -4708,7 +4709,20 @@ u32 swapped =  ((num>>24)&0xff) | // move byte 3 to byte 0
 return swapped;
 
 }
+*/
 
+u8* bswap32(u32 num,u8 L)
+{
+u8* swapped=(u8*) malloc(L);
+memset((void*)swapped,0,L);
+while(num!=0 && L>0){
+u8 tmp = num & 255;
+memcpy(swapped+L-1,&tmp,1);
+L -= 1;
+num = num>>8;
+}
+return swapped;
+}
 // yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
@@ -4730,11 +4744,15 @@ if(packet_type!=-1){
   memcpy(tmp_buf+len_before_target+len,buf_after_target,len_after_target);
   out_buf = tmp_buf; // change out_buf to the whole file
   len = len_target+len_before_target+len_after_target;
+  
   // note that in u32, lower sig comes first, eg, 1d2, d2 is the first byte
-  u32 len_total_conv = bswap32(len-5);//at most two bytes
-  u32 len_handshake_conv = bswap32(len-9);//at most three bytes
-  memcpy(out_buf+3,&len_total_conv,2);
-  memcpy(out_buf+6,&len_handshake_conv,3);
+  u8* len_total_conv = bswap32(len-5,2);//at most two bytes
+  u8* len_handshake_conv = bswap32(len-9,3);//at most three bytes
+  memcpy(out_buf+3,len_total_conv,2);
+  memcpy(out_buf+6,len_handshake_conv,3);
+  // for debug, dump outbuf to file
+  PFATAL("len is %u, len_total_conv is %u, len_handshake_conv is %u\n",len,*len_total_conv,*len_handshake_conv);
+  
 }
 #endif
 // end
