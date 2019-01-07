@@ -136,7 +136,9 @@ u8  *buf_before_target,
     *buf_after_target;
 s32 len_before_target,
     len_target,
-    len_after_target;
+    len_after_target,
+    len_server_hello,
+    len_after_target_server_hello;
 s8  packet_type= -1;
 u8 target_profiled=0;
 
@@ -390,6 +392,7 @@ switch(packet_type){
         */
         {
         u16 total_len1 = (*(buf+3))*16+*(buf+4)+5;//total_len1 is the len of server hello
+	len_server_hello = total_len1;
         u16 total_len2 = *(buf+total_len1+3)*16+*(buf+total_len1+4)+5;// total_len2 is the len of certificate
         u16 total_len3 = 9;//total_len3 is the len of server hello done
         u16 total_len = total_len1 + total_len2 + total_len3;
@@ -402,6 +405,7 @@ switch(packet_type){
         //len_target = ext_len;
         len_before_target = 5+38+1+sessionID_len+3;
         len_target = ext_len+2; // I decided to fuzz the length of extension fields as well
+        len_after_target_server_hello = total_len1-len_before_target-len_target;
         len_after_target = total_len-len_before_target-len_target; 
         buf_before_target = buf;
         buf_target = buf+len_before_target;
@@ -4713,15 +4717,30 @@ return swapped;
 
 u8* bswap32(u32 num,u8 L)
 {
-u8* swapped=(u8*) malloc(L);
-memset((void*)swapped,0,L);
-while(num!=0 && L>0){
-u8 tmp = num & 255;
-memcpy(swapped+L-1,&tmp,1);
-L -= 1;
-num = num>>8;
-}
+  u8* swapped=(u8*) malloc(L);
+  memset((void*)swapped,0,L);
+  while(num!=0 && L>0){
+    u8 tmp = num & 255;
+    memcpy(swapped+L-1,&tmp,1);
+    L -= 1;
+    num = num>>8;
+  }
 return swapped;
+}
+
+// for debug, write buffer to file
+
+void dump_packet(u8* buf,u32 size)
+{
+
+  FILE* pFile=fopen("/home/gabrielchen/tmp/dump_afl","wb");
+  if(pFile){
+    fwrite(buf,size,1,pFile);
+  }
+  else{
+    PFATAL("error when open file for writing!\n");
+  }
+  fclose(pFile);
 }
 // yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
@@ -4744,15 +4763,18 @@ if(packet_type!=-1){
   memcpy(tmp_buf+len_before_target+len,buf_after_target,len_after_target);
   out_buf = tmp_buf; // change out_buf to the whole file
   len = len_target+len_before_target+len_after_target;
-  
+  u32 len_total_new = len;
   // note that in u32, lower sig comes first, eg, 1d2, d2 is the first byte
-  u8* len_total_conv = bswap32(len-5,2);//at most two bytes
-  u8* len_handshake_conv = bswap32(len-9,3);//at most three bytes
+  if(packet_type == 2){
+   len_total_new = len_before_target+len_target+len_after_target_server_hello;
+  }
+
+  u8* len_total_conv = bswap32(len_total_new-5,2);//at most two bytes
+  u8* len_handshake_conv = bswap32(len_total_new-9,3);//at most three bytes
   memcpy(out_buf+3,len_total_conv,2);
   memcpy(out_buf+6,len_handshake_conv,3);
   // for debug, dump outbuf to file
-  PFATAL("len is %u, len_total_conv is %u, len_handshake_conv is %u\n",len,*len_total_conv,*len_handshake_conv);
-  
+  dump_packet(out_buf,len_total_new);
 }
 #endif
 // end
