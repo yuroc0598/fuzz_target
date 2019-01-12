@@ -4733,7 +4733,8 @@ return swapped;
 void dump_packet(u8* buf,u32 size)
 {
 
-  FILE* pFile=fopen("/home/gabrielchen/tmp/dump_afl","wb");
+  u8 * dump_path = alloc_printf("%s/dump_packet",out_dir);
+  FILE* pFile=fopen(dump_path,"wb");
   if(pFile){
     fwrite(buf,size,1,pFile);
   }
