@@ -345,13 +345,13 @@ void get_target_info(u8* buf, s32 len)
 
 if(!buf) PFATAL("read packet format failed\n");
 
-if(packet_type!=1 && packet_type!=2 && packet_type!=3 && packet_type!=4 && packet_type!=-1) PFATAL("packet_type is %d, but currently we only suport packet type 1-4!\n",packet_type);
+if(packet_type!=1 && packet_type!=2 && packet_type!=3 && packet_type!=4 && packet_type!=-1) PFATAL("packet_type is %d, but currently we only support packet type 1-4!\n",packet_type);
 
 if(target_profiled == 1){
     // already profiled, which means that len before and after target should not be changed
     len_target = len-len_before_target-len_after_target;
     buf_target = buf+len_before_target;
-    buf_before_target = buf+len_before_target;
+    buf_before_target = buf;
     buf_after_target = buf+len_before_target+len_target;
     //yurocTODO: set packet len according to target len
 }
