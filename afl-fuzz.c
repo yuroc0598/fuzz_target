@@ -141,7 +141,7 @@ s32 len_before_target,
     len_after_target_server_hello;
 s8  packet_type= -1;
 u8 target_profiled=0;
-
+u8 ENABLE_DUMP = 0;
 #endif
 
 
@@ -4732,18 +4732,28 @@ return swapped;
 
 void dump_packet(u8* buf,u32 size)
 {
-  u8* dummy = malloc(10);
-  memset(dummy,0xFF,10);
+  //u8* dummy = malloc(10);
+  //memset(dummy,0xFF,10);
+  struct timeval tv;
+  gettimeofday(&tv,NULL);
+  int t = tv.tv_sec;
   u8 * dump_path = alloc_printf("%s/dump_packet",out_dir);
-  FILE* pFile=fopen(dump_path,"ab");
+  FILE* pFile=fopen(dump_path,"wb");
   if(pFile){
     fwrite(buf,1,size,pFile);
-    fwrite(dummy,1,10,pFile);
+    //fwrite(dummy,1,10,pFile);
   }
   else{
     PFATAL("error when open file for writing!\n");
   }
   fclose(pFile);
+  char command_buf[1000];
+  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/packet_dump/%s/%d",dump_path,stage_short,t);
+  int status = system(command_buf);
+  if(status == -1){
+    PFATAL("error when mv dump file to tmp!\n");
+  }
+
 }
 // yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
@@ -4777,7 +4787,9 @@ if(packet_type!=-1){
   memcpy(out_buf+3,len_total_conv,2);
   memcpy(out_buf+6,len_handshake_conv,3);
   // for debug, dump outbuf to file
-  dump_packet(out_buf,len_total_new);
+  if(ENABLE_DUMP == 1){
+    dump_packet(out_buf,len_total_new);
+  }
 }
 #endif
 // end
@@ -7932,7 +7944,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCQB:S:M:x:E:")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCQpB:S:M:x:E:")) > 0)
 
     switch (opt) {
             
@@ -8106,6 +8118,9 @@ int main(int argc, char** argv) {
         packet_type = *optarg-'0';
         break;
         
+
+      case 'p':
+        ENABLE_DUMP = 1;
       #endif
 
 
