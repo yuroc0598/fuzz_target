@@ -4732,11 +4732,13 @@ return swapped;
 
 void dump_packet(u8* buf,u32 size)
 {
-
+  u8* dummy = malloc(10);
+  memset(dummy,0xFF,10);
   u8 * dump_path = alloc_printf("%s/dump_packet",out_dir);
-  FILE* pFile=fopen(dump_path,"wb");
+  FILE* pFile=fopen(dump_path,"ab");
   if(pFile){
-    fwrite(buf,size,1,pFile);
+    fwrite(buf,1,size,pFile);
+    fwrite(dummy,1,10,pFile);
   }
   else{
     PFATAL("error when open file for writing!\n");
