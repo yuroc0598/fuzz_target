@@ -4738,9 +4738,7 @@ void dump_packet(u8* buf,u32 size)
   FILE* pFile=fopen(dump_path,"ab");
   if(pFile){
     fwrite(buf,1,size,pFile);
-    fwrite("\n", sizeof(char), 1, pFile);
     fwrite(dummy,1,10,pFile);
-    fwrite("\n", sizeof(char), 1, pFile);
   }
   else{
     PFATAL("error when open file for writing!\n");
