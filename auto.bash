@@ -40,9 +40,9 @@ fi
 function checkExist
 {
 path=$1
-if [ !d $path ]
+if [ ! -d "$path" ]
 then
-mkdir -p $path
+mkdir -p "$path"
 fi
 }
 
