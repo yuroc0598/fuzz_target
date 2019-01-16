@@ -141,7 +141,7 @@ s32 len_before_target,
     len_after_target_server_hello;
 s8  packet_type= -1;
 u8 target_profiled=0;
-u8 ENABLE_DUMP = 0;
+int ENABLE_DUMP = 0;
 #endif
 
 
@@ -361,15 +361,15 @@ switch(packet_type){
     case 1: 
         // client hello
         {
-        u16 total_len = (*(buf+3))*16+*(buf+4)+5;  
+        u16 total_len = (*(buf+3))*256+*(buf+4)+5;  
         u8 sessionID_len = *(buf+5+38);
         u8 cipher_len1 = *(buf+5+38+sessionID_len+1);
         u8 cipher_len2 = *(buf+5+38+sessionID_len+2);
-        u16 cipher_len = cipher_len1*16+cipher_len2;
+        u16 cipher_len = cipher_len1*256+cipher_len2;
         //u8 compression = *(buf+5+38+1+sessionID_len+2+cipher_len+1);
         u8 ext_len1 = *(buf+5+38+1+sessionID_len+2+cipher_len+2);
         u8 ext_len2 = *(buf+5+38+1+sessionID_len+2+cipher_len+3);
-        u16 ext_len = 16*ext_len1 + ext_len2;
+        u16 ext_len = 256*ext_len1 + ext_len2;
         //len_before_target = 5+38+1+sessionID_len+2+cipher_len+2+2;
         //len_target = ext_len;
         len_before_target = 5+38+1+sessionID_len+2+cipher_len+2;// compression len now  is 1
@@ -391,22 +391,23 @@ switch(packet_type){
            need to be set carefully
         */
         {
-        u16 total_len1 = (*(buf+3))*16+*(buf+4)+5;//total_len1 is the len of server hello
-	len_server_hello = total_len1;
-        u16 total_len2 = *(buf+total_len1+3)*16+*(buf+total_len1+4)+5;// total_len2 is the len of certificate
+        u16 total_len1 = (*(buf+3))*256+*(buf+4)+5;//total_len1 is the len of server hello
+	    len_server_hello = total_len1;
+        u16 total_len2 = (*(buf+total_len1+3))*256+*(buf+total_len1+4)+5;// total_len2 is the len of certificate
         u16 total_len3 = 9;//total_len3 is the len of server hello done
         u16 total_len = total_len1 + total_len2 + total_len3;
         u8 sessionID_len = *(buf+5+38);
         // server only has 2 bytes for cipher id
         u8 ext_len1 = *(buf+5+38+1+sessionID_len+3);
         u8 ext_len2 = *(buf+5+38+1+sessionID_len+4);
-        u16 ext_len = 16*ext_len1 + ext_len2;
+        u16 ext_len = 256*ext_len1 + ext_len2;
         //len_before_target = 5+38+1+sessionID_len+2+cipher_len+2+2;
         //len_target = ext_len;
         len_before_target = 5+38+1+sessionID_len+3;
         len_target = ext_len+2; // I decided to fuzz the length of extension fields as well
         len_after_target_server_hello = total_len1-len_before_target-len_target;
         len_after_target = total_len-len_before_target-len_target; 
+        //PFATAL("fisrt profile, len_before is %u, len_target is %u, len_after is %u, total1 is %u, total2 is %u, total3 is %u, total is %u",len_before_target,len_target,len_after_target,total_len1,total_len2,total_len3,total_len);
         buf_before_target = buf;
         buf_target = buf+len_before_target;
         buf_after_target = buf_target+len_target;
@@ -4740,7 +4741,10 @@ void dump_packet(u8* buf,u32 size)
   u8 * dump_path = alloc_printf("%s/dump_packet",out_dir);
   FILE* pFile=fopen(dump_path,"wb");
   if(pFile){
+    char newline = '\n';
     fwrite(buf,1,size,pFile);
+    fwrite(&newline,1,1,pFile);
+    fwrite(&size,1,4,pFile);
     //fwrite(dummy,1,10,pFile);
   }
   else{
@@ -4748,8 +4752,15 @@ void dump_packet(u8* buf,u32 size)
   }
   fclose(pFile);
   char command_buf[1000];
-  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/packet_dump/%s/%d",dump_path,stage_short,t);
+  // create the folder if not exist
+  snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/packet_dump/%s",stage_short);
   int status = system(command_buf);
+  if(status == -1){
+    PFATAL("error when creating dump folder in tmp!\n");
+  }
+
+  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/packet_dump/%s/%d",dump_path,stage_short,t);
+  status = system(command_buf);
   if(status == -1){
     PFATAL("error when mv dump file to tmp!\n");
   }
@@ -4788,7 +4799,9 @@ if(packet_type!=-1){
   memcpy(out_buf+6,len_handshake_conv,3);
   // for debug, dump outbuf to file
   if(ENABLE_DUMP == 1){
-    dump_packet(out_buf,len_total_new);
+    if(len_after_target == 0) PFATAL("len_after_target is 0!\n");
+    //PFATAL("len_after_target is %u\n",len_after_target);
+    dump_packet(out_buf,len);
   }
 }
 #endif
@@ -4829,9 +4842,10 @@ if(packet_type!=-1){
   }
 
   /* This handles FAULT_ERROR for us: */
-  //yuroc
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
+  //yuroc: for debug
+  //dump_packet(out_buf,len);
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
     show_stats();
 
@@ -8121,6 +8135,7 @@ int main(int argc, char** argv) {
 
       case 'p':
         ENABLE_DUMP = 1;
+        break;
       #endif
 
 
