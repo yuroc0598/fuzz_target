@@ -3277,7 +3277,10 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     if (res == FAULT_ERROR)
       FATAL("Unable to execute target application");
+    #ifdef FUZZ_EXT
+    dump_buf(trace_bits,sizeof(trace_bits),"dump_trace");
 
+    #endif		
     fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (fd < 0) PFATAL("Unable to create '%s'", fn);
     ck_write(fd, mem, len, fn);
@@ -4731,14 +4734,14 @@ return swapped;
 
 // for debug, write buffer to file
 
-void dump_packet(u8* buf,u32 size)
+void dump_buf(u8* buf,u32 size,u8* dumptype)
 {
   //u8* dummy = malloc(10);
   //memset(dummy,0xFF,10);
   struct timeval tv;
   gettimeofday(&tv,NULL);
   int t = tv.tv_sec;
-  u8 * dump_path = alloc_printf("%s/dump_packet",out_dir);
+  u8 * dump_path = alloc_printf("%s/%s",out_dir,dumptype);
   FILE* pFile=fopen(dump_path,"wb");
   if(pFile){
     char newline = '\n';
@@ -4753,13 +4756,13 @@ void dump_packet(u8* buf,u32 size)
   fclose(pFile);
   char command_buf[1000];
   // create the folder if not exist
-  snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/packet_dump/%s",stage_short);
+  snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/%s/%s",dumptype,stage_short);
   int status = system(command_buf);
   if(status == -1){
     PFATAL("error when creating dump folder in tmp!\n");
   }
 
-  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/packet_dump/%s/%d",dump_path,stage_short,t);
+  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/%s/%s/%d",dump_path,dumptype,stage_short,t);
   status = system(command_buf);
   if(status == -1){
     PFATAL("error when mv dump file to tmp!\n");
@@ -4801,7 +4804,7 @@ if(packet_type!=-1){
   if(ENABLE_DUMP == 1){
     if(len_after_target == 0) PFATAL("len_after_target is 0!\n");
     //PFATAL("len_after_target is %u\n",len_after_target);
-    dump_packet(out_buf,len);
+    dump_buf(out_buf,len,"dump_packet");
   }
 }
 #endif
@@ -4845,7 +4848,7 @@ if(packet_type!=-1){
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
   //yuroc: for debug
-  //dump_packet(out_buf,len);
+  //dump_buf(out_buf,len,"dump_packet");
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
     show_stats();
 
