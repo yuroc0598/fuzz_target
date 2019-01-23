@@ -8136,7 +8136,8 @@ int main(int argc, char** argv) {
       case 'E': 
         // parse the input according to the type of packets
         packet_type = *optarg-'0';
-		if(packet_type!=1 and packet_type!=2) packet_type = -1;
+		if(packet_type!=1 && packet_type!=2) 
+		packet_type = -1;
         break;
         
 
