@@ -3249,6 +3249,10 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       if (crash_mode) total_crashes++;
       return 0;
     }    
+#ifdef FUZZ_EXT
+  dump_buf(trace_bits,sizeof(trace_bits),"dump_trace_ext");
+
+#endif
 
 #ifndef SIMPLE_FILES
 
@@ -3278,8 +3282,6 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     if (res == FAULT_ERROR)
       FATAL("Unable to execute target application");
     #ifdef FUZZ_EXT
-    PFATAL("new trace bit found!\n");
-    dump_buf(trace_bits,sizeof(trace_bits),"dump_trace");
 
     #endif		
     fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -8134,6 +8136,7 @@ int main(int argc, char** argv) {
       case 'E': 
         // parse the input according to the type of packets
         packet_type = *optarg-'0';
+		if(packet_type!=1 and packet_type!=2) packet_type = -1;
         break;
         
 
