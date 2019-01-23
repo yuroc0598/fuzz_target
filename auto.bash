@@ -55,8 +55,8 @@ isEmpty "$PROG_PATH/out/$out_dir"
 sub_out_dir=fuzzer"$i"
 if [ $i -eq 0 ]
 then
-$AFL_PATH/experimental/asan_cgroups/limit_memory.sh -u $USR $AFL_PATH/afl-fuzz  -i $PROG_PATH/in/$in_dir -o $PROG_PATH/out/$out_dir -M $sub_out_dir -m none -t 500 -E $PACKET $PROG_PATH/selftls $PACKET @@ &
+$AFL_PATH/experimental/asan_cgroups/limit_memory.sh -u $USR $AFL_PATH/afl-fuzz  -i $PROG_PATH/in/$in_dir -o $PROG_PATH/out/$out_dir -M $sub_out_dir -m none -t 500 -E $PACKET  $PROG_PATH/selftls $PACKET @@ &
 else
-$AFL_PATH/experimental/asan_cgroups/limit_memory.sh -u $USR $AFL_PATH/afl-fuzz  -i $PROG_PATH/in/$in_dir -o $PROG_PATH/out/$out_dir -S $sub_out_dir -m none -t 500 -E $PACKET $PROG_PATH/selftls $PACKET @@ &
+$AFL_PATH/experimental/asan_cgroups/limit_memory.sh -u $USR $AFL_PATH/afl-fuzz  -i $PROG_PATH/in/$in_dir -o $PROG_PATH/out/$out_dir -S $sub_out_dir -m none -t 500 -E $PACKET  $PROG_PATH/selftls $PACKET @@ &
 fi
 done

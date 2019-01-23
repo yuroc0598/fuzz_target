@@ -3278,6 +3278,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     if (res == FAULT_ERROR)
       FATAL("Unable to execute target application");
     #ifdef FUZZ_EXT
+    PFATAL("new trace bit found!\n");
     dump_buf(trace_bits,sizeof(trace_bits),"dump_trace");
 
     #endif		
@@ -4802,7 +4803,7 @@ if(packet_type!=-1){
   memcpy(out_buf+6,len_handshake_conv,3);
   // for debug, dump outbuf to file
   if(ENABLE_DUMP == 1){
-    if(len_after_target == 0) PFATAL("len_after_target is 0!\n");
+    //if(len_after_target == 0) PFATAL("len_after_target is 0!\n");
     //PFATAL("len_after_target is %u\n",len_after_target);
     dump_buf(out_buf,len,"dump_packet");
   }
