@@ -438,6 +438,41 @@ if(len_after_target<0 || len_target<0 || len_before_target<0){
 }
 }
 
+void dump_buf(u8* buf,u32 size,u8* dumptype)
+{
+  //u8* dummy = malloc(10);
+  //memset(dummy,0xFF,10);
+  struct timeval tv;
+  gettimeofday(&tv,NULL);
+  int t = tv.tv_sec;
+  u8 * dump_path = alloc_printf("%s/%s",out_dir,dumptype);
+  FILE* pFile=fopen(dump_path,"wb");
+  if(pFile){
+    char newline = '\n';
+    fwrite(buf,1,size,pFile);
+    fwrite(&newline,1,1,pFile);
+    fwrite(&size,1,4,pFile);
+    //fwrite(dummy,1,10,pFile);
+  }
+  else{
+    PFATAL("error when open file for writing!\n");
+  }
+  fclose(pFile);
+  char command_buf[1000];
+  // create the folder if not exist
+  snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/%s/%s",dumptype,stage_short);
+  int status = system(command_buf);
+  if(status == -1){
+    PFATAL("error when creating dump folder in tmp!\n");
+  }
+
+  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/%s/%s/%d",dump_path,dumptype,stage_short,t);
+  status = system(command_buf);
+  if(status == -1){
+    PFATAL("error when mv dump file to tmp!\n");
+  }
+
+}
 #endif
 
 
@@ -1059,6 +1094,11 @@ static inline u8 has_new_bits(u8* virgin_map) {
 
   if (ret && virgin_map == virgin_bits) bitmap_changed = 1;
 
+  #ifdef FUZZ_EXTENSION
+  if(ret){
+    dump_buf(trace_bits,sizeof(trace_bits),"dump_trace_ext_hasnew");
+  }
+  #endif
   return ret;
 
 }
@@ -3249,10 +3289,6 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       if (crash_mode) total_crashes++;
       return 0;
     }    
-#ifdef FUZZ_EXT
-  dump_buf(trace_bits,sizeof(trace_bits),"dump_trace_ext");
-
-#endif
 
 #ifndef SIMPLE_FILES
 
@@ -3281,9 +3317,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     if (res == FAULT_ERROR)
       FATAL("Unable to execute target application");
-    #ifdef FUZZ_EXT
 
-    #endif		
     fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (fd < 0) PFATAL("Unable to create '%s'", fn);
     ck_write(fd, mem, len, fn);
@@ -4736,42 +4770,6 @@ return swapped;
 }
 
 // for debug, write buffer to file
-
-void dump_buf(u8* buf,u32 size,u8* dumptype)
-{
-  //u8* dummy = malloc(10);
-  //memset(dummy,0xFF,10);
-  struct timeval tv;
-  gettimeofday(&tv,NULL);
-  int t = tv.tv_sec;
-  u8 * dump_path = alloc_printf("%s/%s",out_dir,dumptype);
-  FILE* pFile=fopen(dump_path,"wb");
-  if(pFile){
-    char newline = '\n';
-    fwrite(buf,1,size,pFile);
-    fwrite(&newline,1,1,pFile);
-    fwrite(&size,1,4,pFile);
-    //fwrite(dummy,1,10,pFile);
-  }
-  else{
-    PFATAL("error when open file for writing!\n");
-  }
-  fclose(pFile);
-  char command_buf[1000];
-  // create the folder if not exist
-  snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/%s/%s",dumptype,stage_short);
-  int status = system(command_buf);
-  if(status == -1){
-    PFATAL("error when creating dump folder in tmp!\n");
-  }
-
-  snprintf(command_buf,sizeof(command_buf),"mv %s ~/tmp/fuzz/%s/%s/%d",dump_path,dumptype,stage_short,t);
-  status = system(command_buf);
-  if(status == -1){
-    PFATAL("error when mv dump file to tmp!\n");
-  }
-
-}
 // yuroc: out_buf is now only extension part, add the other portion to the argument list and concat them for fuzzing
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
@@ -4805,9 +4803,7 @@ if(packet_type!=-1){
   memcpy(out_buf+6,len_handshake_conv,3);
   // for debug, dump outbuf to file
   if(ENABLE_DUMP == 1){
-    //if(len_after_target == 0) PFATAL("len_after_target is 0!\n");
-    //PFATAL("len_after_target is %u\n",len_after_target);
-    dump_buf(out_buf,len,"dump_packet");
+        dump_buf(out_buf,len,"dump_packet");
   }
 }
 #endif
@@ -4850,8 +4846,6 @@ if(packet_type!=-1){
   /* This handles FAULT_ERROR for us: */
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
-  //yuroc: for debug
-  //dump_buf(out_buf,len,"dump_packet");
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
     show_stats();
 

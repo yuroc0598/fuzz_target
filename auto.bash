@@ -1,7 +1,7 @@
 #!/bin/bash
 USR=`logname`
 AFL_PATH="/home/$USR/workspace/protocol/tools/fuzz_target"
-PROG_PATH="/home/$USR/workspace/protocol/progs/selftls"
+PROG_PATH="/home/$USR/workspace/protocol/progs/selftls-ext"
 NTHREAD=$2
 PACKET=$1
 
