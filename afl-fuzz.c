@@ -354,6 +354,7 @@ if(target_profiled == 1){
     buf_before_target = buf;
     buf_after_target = buf+len_before_target+len_target;
     //yurocTODO: set packet len according to target len
+    //PFATAL("check len when profiled!before: %d,target:%d,after:%d\n",len_before_target,len_target,len_after_target);
 }
 else{
 target_profiled = 1;
@@ -436,6 +437,7 @@ if(len_after_target<0 || len_target<0 || len_before_target<0){
     PFATAL("some len is negative!before: %d,target:%d,after:%d\n",len_before_target,len_target,len_after_target);
 
 }
+
 }
 
 void dump_buf(u8* buf,u32 size,u8* dumptype)
@@ -448,10 +450,10 @@ void dump_buf(u8* buf,u32 size,u8* dumptype)
   u8 * dump_path = alloc_printf("%s/%s",out_dir,dumptype);
   FILE* pFile=fopen(dump_path,"wb");
   if(pFile){
-    char newline = '\n';
+    //char newline = '\n';
     fwrite(buf,1,size,pFile);
-    fwrite(&newline,1,1,pFile);
-    fwrite(&size,1,4,pFile);
+    //fwrite(&newline,1,1,pFile);
+    //fwrite(&size,1,4,pFile);
     //fwrite(dummy,1,10,pFile);
   }
   else{
@@ -4801,8 +4803,12 @@ if(packet_type!=-1){
   u8* len_handshake_conv = bswap32(len_total_new-9,3);//at most three bytes
   memcpy(out_buf+3,len_total_conv,2);
   memcpy(out_buf+6,len_handshake_conv,3);
+  // if fuzzing extension len is required, e.g., inconsistency is allowed, then uncommend the flowing two line
+  u8* len_extension = bswap32(len_target-2,2);
+  memcpy(out_buf+len_before_target,len_extension,2);
   // for debug, dump outbuf to file
   if(ENABLE_DUMP == 1){
+	//if(len!=227) 	PFATAL("len of input is %d and stage is %s\n",len,stage_short);
         dump_buf(out_buf,len,"dump_packet");
   }
 }
