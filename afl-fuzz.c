@@ -462,6 +462,7 @@ void dump_buf(u8* buf,u32 size,u8* dumptype)
   fclose(pFile);
   char command_buf[1000];
   // create the folder if not exist
+  if(!stage_short) stage_short = "none";
   snprintf(command_buf,sizeof(command_buf),"mkdir -p ~/tmp/fuzz/%s/%s",dumptype,stage_short);
   int status = system(command_buf);
   if(status == -1){
