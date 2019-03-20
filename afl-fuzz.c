@@ -476,6 +476,22 @@ void dump_buf(u8* buf,u32 size,u8* dumptype)
   }
 
 }
+void dump_pre(u8* buf,u32 size)
+{
+  //u8* dummy = malloc(10);
+  //memset(dummy,0xFF,10);
+  PFATAL("dump pre is called, woohaa\n");
+  u8 * dump_path = alloc_printf("~/tmp/prepacket");
+  FILE* pFile=fopen(dump_path,"wb");
+  if(pFile){
+    fwrite(buf,1,size,pFile);
+  }
+  else{
+    PFATAL("error when open file for writing!\n");
+  }
+  fclose(pFile);
+
+}
 #endif
 
 
@@ -1100,6 +1116,7 @@ static inline u8 has_new_bits(u8* virgin_map) {
   #ifdef FUZZ_EXTENSION
   if(ret){
     dump_buf(trace_bits,sizeof(trace_bits),"dump_trace_ext_hasnew");
+	//dump_pre(buf_before_target,len);//yuroc
   }
   #endif
   return ret;
@@ -2627,6 +2644,8 @@ static u8 run_target(char** argv, u32 timeout) {
    is unlinked and a new one is created. Otherwise, out_fd is rewound and
    truncated. */
 
+/*yuroc: write to testcase, then fuzz the next packet*/
+
 static void write_to_testcase(void* mem, u32 len) {
 
   s32 fd = out_fd;
@@ -3276,6 +3295,8 @@ static void write_crash_readme(void) {
    save or queue the input test case for further analysis if so. Returns 1 if
    entry is saved, 0 otherwise. */
 
+
+/* if interesting, fuzz next packet*/
 static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
   u8  *fn = "";
@@ -3292,7 +3313,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       if (crash_mode) total_crashes++;
       return 0;
     }    
-
+	PFATAL("has new bits returns something nonzero\n");
+	dump_pre(mem,len);
 #ifndef SIMPLE_FILES
 
     fn = alloc_printf("%s/queue/id:%06u,%s", out_dir, queued_paths,
@@ -3325,7 +3347,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     if (fd < 0) PFATAL("Unable to create '%s'", fn);
     ck_write(fd, mem, len, fn);
     close(fd);
-
+	dump_pre(mem,len);
+  
     keeping = 1;
 
   }
@@ -3454,6 +3477,7 @@ keep_as_crash:
   ck_write(fd, mem, len, fn);
   close(fd);
 
+  dump_pre(mem,len);
   ck_free(fn);
 
   return keeping;
